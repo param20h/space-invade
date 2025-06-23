@@ -44,7 +44,7 @@ pip --version
 Installation
 Clone the repository
 
-git clone https://github.com/your-username/space-invade.git
+git clone 
 
 Navigate to the project directory
 
