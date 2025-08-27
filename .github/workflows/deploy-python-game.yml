@@ -1,0 +1,503 @@
+name: Deploy Python Space Invaders
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pygame==2.5.2
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Create web-compatible game
+      run: |
+        mkdir -p public
+        
+        # Create a simple web interface that explains the game
+        cat > public/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>🚀 Space Invaders - Python Game 🛸</title>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #000011, #001122, #000033);
+                    color: #fff;
+                    font-family: 'Courier New', monospace;
+                    min-height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }
+                .container {
+                    max-width: 1000px;
+                    text-align: center;
+                    background: rgba(0, 0, 0, 0.7);
+                    padding: 40px;
+                    border-radius: 20px;
+                    border: 2px solid #00ffff;
+                    box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+                }
+                h1 {
+                    color: #00ff00;
+                    text-shadow: 0 0 20px #00ff00;
+                    font-size: 3em;
+                    margin-bottom: 20px;
+                    animation: glow 2s ease-in-out infinite alternate;
+                }
+                @keyframes glow {
+                    from { text-shadow: 0 0 20px #00ff00; }
+                    to { text-shadow: 0 0 30px #00ff00, 0 0 40px #00ff00; }
+                }
+                .subtitle {
+                    color: #00ffff;
+                    font-size: 1.5em;
+                    margin-bottom: 30px;
+                }
+                .section {
+                    margin: 30px 0;
+                    padding: 20px;
+                    background: rgba(0, 50, 50, 0.3);
+                    border-radius: 10px;
+                    text-align: left;
+                }
+                .section h2 {
+                    color: #ffff00;
+                    border-bottom: 2px solid #ffff00;
+                    padding-bottom: 10px;
+                }
+                .code-block {
+                    background: #1a1a1a;
+                    padding: 15px;
+                    border-radius: 5px;
+                    border-left: 4px solid #00ff00;
+                    font-family: 'Courier New', monospace;
+                    margin: 15px 0;
+                    overflow-x: auto;
+                }
+                .download-btn {
+                    display: inline-block;
+                    background: linear-gradient(45deg, #ff0080, #8000ff);
+                    color: white;
+                    padding: 15px 30px;
+                    text-decoration: none;
+                    border-radius: 10px;
+                    font-size: 1.2em;
+                    font-weight: bold;
+                    margin: 20px;
+                    transition: all 0.3s;
+                    box-shadow: 0 0 20px rgba(255, 0, 128, 0.5);
+                }
+                .download-btn:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 5px 25px rgba(255, 0, 128, 0.7);
+                }
+                .play-btn {
+                    background: linear-gradient(45deg, #00ff00, #00aa00);
+                    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+                }
+                .play-btn:hover {
+                    box-shadow: 0 5px 25px rgba(0, 255, 0, 0.7);
+                }
+                .features {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin: 20px 0;
+                }
+                .feature {
+                    background: rgba(0, 100, 100, 0.2);
+                    padding: 20px;
+                    border-radius: 10px;
+                    border: 1px solid #00ffff;
+                }
+                .feature h3 {
+                    color: #00ffff;
+                    margin-top: 0;
+                }
+                .stars {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: -1;
+                }
+                .star {
+                    position: absolute;
+                    background: white;
+                    border-radius: 50%;
+                    animation: twinkle 3s infinite;
+                }
+                @keyframes twinkle {
+                    0%, 100% { opacity: 0.3; }
+                    50% { opacity: 1; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="stars" id="stars"></div>
+            
+            <div class="container">
+                <h1>🚀 ULTIMATE SPACE INVADERS 🛸</h1>
+                <p class="subtitle">AI-Powered Python Game with Pygame</p>
+                
+                <div class="section">
+                    <h2>🎮 Play the Game</h2>
+                    <p>This is a feature-rich Space Invaders game built with Python and Pygame. Choose how you want to experience it:</p>
+                    
+                    <a href="#" onclick="openWebGame()" class="download-btn play-btn">🌐 Play Web Version</a>
+                    <a href="https://github.com/param20h/space-invade/archive/main.zip" class="download-btn">📥 Download Python Game</a>
+                </div>
+                
+                <div class="section">
+                    <h2>🚀 Game Features</h2>
+                    <div class="features">
+                        <div class="feature">
+                            <h3>🎯 Enhanced Gameplay</h3>
+                            <ul>
+                                <li>Multiple weapon types</li>
+                                <li>Power-ups and upgrades</li>
+                                <li>Boss battles</li>
+                                <li>Achievement system</li>
+                            </ul>
+                        </div>
+                        <div class="feature">
+                            <h3>💫 Visual Effects</h3>
+                            <ul>
+                                <li>Particle explosions</li>
+                                <li>Screen shake effects</li>
+                                <li>Dynamic backgrounds</li>
+                                <li>Smooth animations</li>
+                            </ul>
+                        </div>
+                        <div class="feature">
+                            <h3>🎵 Audio Experience</h3>
+                            <ul>
+                                <li>Sound effects</li>
+                                <li>Dynamic audio</li>
+                                <li>Immersive feedback</li>
+                                <li>Audio customization</li>
+                            </ul>
+                        </div>
+                        <div class="feature">
+                            <h3>🏆 Progression System</h3>
+                            <ul>
+                                <li>XP and leveling</li>
+                                <li>Coin collection</li>
+                                <li>Weapon upgrades</li>
+                                <li>Multiple difficulty levels</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>💻 Run Locally (Python)</h2>
+                    <p>To run the full-featured Python version on your computer:</p>
+                    
+                    <div class="code-block">
+                        # 1. Clone the repository<br>
+                        git clone https://github.com/param20h/space-invade.git<br>
+                        cd space-invade<br><br>
+                        
+                        # 2. Install pygame<br>
+                        pip install pygame<br><br>
+                        
+                        # 3. Run the game<br>
+                        python space_invaders.py
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>🎮 Controls</h2>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div><strong>← →</strong> Move spaceship</div>
+                        <div><strong>SPACE</strong> Shoot laser</div>
+                        <div><strong>P</strong> Pause game</div>
+                        <div><strong>ESC</strong> Main menu</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>🛠️ Built With</h2>
+                    <ul>
+                        <li><strong>Python 3.9+</strong> - Core programming language</li>
+                        <li><strong>Pygame</strong> - Game development framework</li>
+                        <li><strong>AI-Assisted Development</strong> - Created with modern AI tools</li>
+                        <li><strong>GitHub Actions</strong> - Automated deployment</li>
+                    </ul>
+                </div>
+                
+                <div style="margin-top: 40px; color: #888;">
+                    <p>⭐ Star this project on <a href="https://github.com/param20h/space-invade" style="color: #00ffff;">GitHub</a></p>
+                </div>
+            </div>
+
+            <script>
+                // Create animated stars background
+                function createStars() {
+                    const starsContainer = document.getElementById('stars');
+                    for (let i = 0; i < 100; i++) {
+                        const star = document.createElement('div');
+                        star.className = 'star';
+                        star.style.left = Math.random() * 100 + '%';
+                        star.style.top = Math.random() * 100 + '%';
+                        star.style.width = Math.random() * 3 + 1 + 'px';
+                        star.style.height = star.style.width;
+                        star.style.animationDelay = Math.random() * 3 + 's';
+                        starsContainer.appendChild(star);
+                    }
+                }
+                
+                function openWebGame() {
+                    // Create a modal with embedded game
+                    const modal = document.createElement('div');
+                    modal.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.95);
+                        z-index: 1000;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        flex-direction: column;
+                    `;
+                    
+                    modal.innerHTML = `
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <h2 style="color: #00ff00; margin: 0;">🚀 Space Invaders Web Version 🛸</h2>
+                            <p style="color: #fff; margin: 10px 0;">Use arrow keys to move, spacebar to shoot!</p>
+                            <button onclick="this.parentElement.parentElement.remove()" 
+                                    style="background: #ff0000; color: white; border: none; padding: 10px 20px; 
+                                           border-radius: 5px; cursor: pointer; font-size: 16px;">
+                                ✕ Close Game
+                            </button>
+                        </div>
+                        <iframe src="game.html" width="1020" height="720" 
+                                style="border: 2px solid #00ffff; border-radius: 10px;"></iframe>
+                    `;
+                    
+                    document.body.appendChild(modal);
+                }
+                
+                createStars();
+            </script>
+        </body>
+        </html>
+        EOF
+        
+        # Create the embedded game file
+        cat > public/game.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Space Invaders Game</title>
+            <style>
+                body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+                canvas { border: 1px solid #00ffff; }
+            </style>
+        </head>
+        <body>
+            <canvas id="game" width="1000" height="700"></canvas>
+            <script>
+                // Simplified Space Invaders game implementation
+                const canvas = document.getElementById('game');
+                const ctx = canvas.getContext('2d');
+                
+                let gameState = { score: 0, lives: 3, wave: 1, gameOver: false };
+                let player = { x: 475, y: 650, width: 50, height: 30, speed: 8 };
+                let bullets = [], aliens = [], particles = [];
+                let keys = {};
+                
+                // Create aliens
+                function createAliens() {
+                    aliens = [];
+                    for (let row = 0; row < 5; row++) {
+                        for (let col = 0; col < 10; col++) {
+                            aliens.push({
+                                x: 50 + col * 80, y: 50 + row * 60,
+                                width: 35, height: 25, speed: 1, health: 1
+                            });
+                        }
+                    }
+                }
+                
+                // Input handling
+                document.addEventListener('keydown', e => {
+                    keys[e.code] = true;
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        shoot();
+                    }
+                });
+                document.addEventListener('keyup', e => keys[e.code] = false);
+                
+                function shoot() {
+                    if (gameState.gameOver) return;
+                    bullets.push({ x: player.x + 23, y: player.y, width: 4, height: 10, speed: 12 });
+                }
+                
+                function update() {
+                    if (gameState.gameOver) return;
+                    
+                    // Player movement
+                    if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+                    if (keys['ArrowRight'] && player.x < canvas.width - player.width) player.x += player.speed;
+                    
+                    // Update bullets
+                    bullets = bullets.filter(bullet => {
+                        bullet.y -= bullet.speed;
+                        return bullet.y > 0;
+                    });
+                    
+                    // Move aliens
+                    let moveDown = false;
+                    for (let alien of aliens) {
+                        alien.x += alien.speed;
+                        if (alien.x <= 0 || alien.x >= canvas.width - alien.width) moveDown = true;
+                    }
+                    if (moveDown) {
+                        for (let alien of aliens) {
+                            alien.speed *= -1;
+                            alien.y += 40;
+                        }
+                    }
+                    
+                    // Collision detection
+                    for (let i = bullets.length - 1; i >= 0; i--) {
+                        for (let j = aliens.length - 1; j >= 0; j--) {
+                            if (bullets[i] && aliens[j] &&
+                                bullets[i].x < aliens[j].x + aliens[j].width &&
+                                bullets[i].x + bullets[i].width > aliens[j].x &&
+                                bullets[i].y < aliens[j].y + aliens[j].height &&
+                                bullets[i].y + bullets[i].height > aliens[j].y) {
+                                
+                                gameState.score += 10;
+                                bullets.splice(i, 1);
+                                aliens.splice(j, 1);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Check win/lose
+                    if (aliens.length === 0) {
+                        gameState.wave++;
+                        createAliens();
+                    }
+                    
+                    for (let alien of aliens) {
+                        if (alien.y + alien.height >= player.y) {
+                            gameState.gameOver = true;
+                        }
+                    }
+                }
+                
+                function draw() {
+                    // Clear screen
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw player
+                    ctx.fillStyle = '#00ffff';
+                    ctx.fillRect(player.x, player.y, player.width, player.height);
+                    
+                    // Draw bullets
+                    ctx.fillStyle = '#ffff00';
+                    for (let bullet of bullets) {
+                        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                    }
+                    
+                    // Draw aliens
+                    ctx.fillStyle = '#00ff00';
+                    for (let alien of aliens) {
+                        ctx.fillRect(alien.x, alien.y, alien.width, alien.height);
+                    }
+                    
+                    // Draw UI
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '20px monospace';
+                    ctx.fillText(`Score: ${gameState.score}`, 10, 30);
+                    ctx.fillText(`Lives: ${gameState.lives}`, 10, 60);
+                    ctx.fillText(`Wave: ${gameState.wave}`, 10, 90);
+                    
+                    if (gameState.gameOver) {
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#ff0000';
+                        ctx.font = '48px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
+                        ctx.font = '24px monospace';
+                        ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2 + 50);
+                        ctx.textAlign = 'left';
+                    }
+                }
+                
+                document.addEventListener('keydown', e => {
+                    if (e.code === 'KeyR' && gameState.gameOver) {
+                        gameState = { score: 0, lives: 3, wave: 1, gameOver: false };
+                        player.x = 475;
+                        bullets = [];
+                        createAliens();
+                    }
+                });
+                
+                function gameLoop() {
+                    update();
+                    draw();
+                    requestAnimationFrame(gameLoop);
+                }
+                
+                createAliens();
+                gameLoop();
+            </script>
+        </body>
+        </html>
+        EOF
+        
+        # Copy the Python source code for download
+        cp space_invaders.py public/
+        cp README.md public/
+        if [ -f requirements.txt ]; then cp requirements.txt public/; fi
+        
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './public'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
