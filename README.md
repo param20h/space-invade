@@ -55,9 +55,34 @@ Install Pygame
 pip install pygame
 
 Running the Game
+
+**Desktop Version:**
 Execute the main Python script to start the game.
 
-python main_game.py
+```bash
+python space_invaders.py
+```
+
+**Web Version:**
+The game is automatically deployed to GitHub Pages when you push to the main branch. You can play it online at:
+`https://[your-username].github.io/[repository-name]/`
+
+Two deployment options are available:
+1. **HTML5 Version** (recommended): A native JavaScript/HTML5 implementation that runs smoothly in any modern browser
+2. **Pygame Web Version**: Uses pygbag to convert the Python/Pygame code to run in browsers
+
+🌐 Online Deployment
+
+This repository includes GitHub Actions workflows that automatically deploy the game to GitHub Pages:
+
+- **deploy-html5.yml**: Creates a native HTML5/JavaScript version of the game
+- **deploy-game.yml**: Converts the Python/Pygame code to run in browsers using pygbag
+
+To enable GitHub Pages deployment:
+1. Go to your repository Settings
+2. Navigate to Pages section
+3. Set Source to "GitHub Actions"
+4. Push to main branch to trigger deployment
 
 🎮 How to Play
 The controls are simple and classic!

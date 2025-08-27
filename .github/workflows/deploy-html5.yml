@@ -1,0 +1,400 @@
+name: Deploy Space Invaders (HTML5)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Create HTML5 game version
+      run: |
+        mkdir -p docs
+        
+        # Create index.html
+        cat > docs/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Ultimate Space Invaders</title>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 20px;
+                    background: #000;
+                    color: #fff;
+                    font-family: Arial, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+                canvas {
+                    border: 2px solid #fff;
+                    background: #000;
+                }
+                .controls {
+                    margin-top: 20px;
+                    text-align: center;
+                }
+                .controls p {
+                    margin: 5px 0;
+                }
+                h1 {
+                    color: #00ff00;
+                    text-shadow: 0 0 10px #00ff00;
+                }
+                .score {
+                    font-size: 24px;
+                    margin: 10px 0;
+                }
+                .game-over {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.8);
+                    padding: 20px;
+                    border: 2px solid #ff0000;
+                    text-align: center;
+                    display: none;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>🚀 Ultimate Space Invaders 🛸</h1>
+            <div class="score">
+                Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | Wave: <span id="wave">1</span>
+            </div>
+            <canvas id="gameCanvas" width="1000" height="700"></canvas>
+            <div class="controls">
+                <p><strong>Controls:</strong></p>
+                <p>← → Arrow Keys: Move | Spacebar: Shoot</p>
+                <p>Click canvas to focus, then use keyboard controls</p>
+            </div>
+            <div id="gameOver" class="game-over">
+                <h2>Game Over!</h2>
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <button onclick="restartGame()">Play Again</button>
+            </div>
+
+            <script>
+                const canvas = document.getElementById('gameCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Game state
+                let gameState = {
+                    score: 0,
+                    lives: 3,
+                    wave: 1,
+                    gameOver: false,
+                    paused: false
+                };
+                
+                // Player
+                let player = {
+                    x: canvas.width / 2 - 20,
+                    y: canvas.height - 80,
+                    width: 40,
+                    height: 30,
+                    speed: 6
+                };
+                
+                // Game objects
+                let bullets = [];
+                let aliens = [];
+                let particles = [];
+                let stars = [];
+                
+                // Input handling
+                let keys = {};
+                
+                // Initialize stars background
+                for (let i = 0; i < 150; i++) {
+                    stars.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 3 + 1,
+                        speed: Math.random() * 2 + 0.5
+                    });
+                }
+                
+                // Initialize aliens
+                function createAliens() {
+                    aliens = [];
+                    for (let row = 0; row < 5; row++) {
+                        for (let col = 0; col < 10; col++) {
+                            aliens.push({
+                                x: 50 + col * 80,
+                                y: 50 + row * 60,
+                                width: 30,
+                                height: 20,
+                                type: row < 2 ? 'fast' : 'basic',
+                                health: 1,
+                                points: row < 2 ? 20 : 10,
+                                moveX: 1,
+                                moveY: 0
+                            });
+                        }
+                    }
+                }
+                
+                // Event listeners
+                document.addEventListener('keydown', (e) => {
+                    keys[e.code] = true;
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        shoot();
+                    }
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    keys[e.code] = false;
+                });
+                
+                // Make canvas focusable
+                canvas.tabIndex = 1;
+                canvas.addEventListener('click', () => {
+                    canvas.focus();
+                });
+                
+                function shoot() {
+                    if (gameState.gameOver) return;
+                    bullets.push({
+                        x: player.x + player.width / 2 - 2,
+                        y: player.y,
+                        width: 4,
+                        height: 10,
+                        speed: 8,
+                        color: '#ffff00'
+                    });
+                }
+                
+                function createParticle(x, y, color) {
+                    for (let i = 0; i < 8; i++) {
+                        particles.push({
+                            x: x,
+                            y: y,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6,
+                            color: color,
+                            life: 30,
+                            maxLife: 30
+                        });
+                    }
+                }
+                
+                function update() {
+                    if (gameState.gameOver) return;
+                    
+                    // Player movement
+                    if (keys['ArrowLeft'] && player.x > 0) {
+                        player.x -= player.speed;
+                    }
+                    if (keys['ArrowRight'] && player.x < canvas.width - player.width) {
+                        player.x += player.speed;
+                    }
+                    
+                    // Update bullets
+                    bullets = bullets.filter(bullet => {
+                        bullet.y -= bullet.speed;
+                        return bullet.y > -bullet.height;
+                    });
+                    
+                    // Update aliens
+                    let moveDown = false;
+                    for (let alien of aliens) {
+                        alien.x += alien.moveX;
+                        if (alien.x <= 0 || alien.x >= canvas.width - alien.width) {
+                            moveDown = true;
+                        }
+                    }
+                    
+                    if (moveDown) {
+                        for (let alien of aliens) {
+                            alien.moveX *= -1;
+                            alien.y += 20;
+                        }
+                    }
+                    
+                    // Collision detection
+                    for (let i = bullets.length - 1; i >= 0; i--) {
+                        for (let j = aliens.length - 1; j >= 0; j--) {
+                            if (bullets[i] && aliens[j] &&
+                                bullets[i].x < aliens[j].x + aliens[j].width &&
+                                bullets[i].x + bullets[i].width > aliens[j].x &&
+                                bullets[i].y < aliens[j].y + aliens[j].height &&
+                                bullets[i].y + bullets[i].height > aliens[j].y) {
+                                
+                                // Hit!
+                                createParticle(aliens[j].x + aliens[j].width/2, aliens[j].y + aliens[j].height/2, '#00ff00');
+                                gameState.score += aliens[j].points;
+                                bullets.splice(i, 1);
+                                aliens.splice(j, 1);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Update particles
+                    particles = particles.filter(particle => {
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.life--;
+                        return particle.life > 0;
+                    });
+                    
+                    // Update stars
+                    for (let star of stars) {
+                        star.y += star.speed;
+                        if (star.y > canvas.height) {
+                            star.y = 0;
+                            star.x = Math.random() * canvas.width;
+                        }
+                    }
+                    
+                    // Check win condition
+                    if (aliens.length === 0) {
+                        gameState.wave++;
+                        createAliens();
+                    }
+                    
+                    // Check lose condition
+                    for (let alien of aliens) {
+                        if (alien.y + alien.height >= player.y) {
+                            gameState.lives--;
+                            if (gameState.lives <= 0) {
+                                gameOver();
+                            } else {
+                                // Reset alien positions
+                                createAliens();
+                            }
+                            break;
+                        }
+                    }
+                    
+                    // Update UI
+                    document.getElementById('score').textContent = gameState.score;
+                    document.getElementById('lives').textContent = gameState.lives;
+                    document.getElementById('wave').textContent = gameState.wave;
+                }
+                
+                function draw() {
+                    // Clear canvas
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw stars
+                    ctx.fillStyle = '#ffffff';
+                    for (let star of stars) {
+                        ctx.beginPath();
+                        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    // Draw player
+                    ctx.fillStyle = '#00ffff';
+                    ctx.beginPath();
+                    ctx.moveTo(player.x + player.width/2, player.y);
+                    ctx.lineTo(player.x, player.y + player.height);
+                    ctx.lineTo(player.x + player.width, player.y + player.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Draw bullets
+                    for (let bullet of bullets) {
+                        ctx.fillStyle = bullet.color;
+                        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                    }
+                    
+                    // Draw aliens
+                    for (let alien of aliens) {
+                        ctx.fillStyle = alien.type === 'fast' ? '#ff0000' : '#00ff00';
+                        ctx.fillRect(alien.x, alien.y, alien.width, alien.height);
+                        
+                        // Draw alien details
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(alien.x + 5, alien.y + 5, 5, 5);
+                        ctx.fillRect(alien.x + 20, alien.y + 5, 5, 5);
+                    }
+                    
+                    // Draw particles
+                    for (let particle of particles) {
+                        const alpha = particle.life / particle.maxLife;
+                        ctx.globalAlpha = alpha;
+                        ctx.fillStyle = particle.color;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
+                }
+                
+                function gameOver() {
+                    gameState.gameOver = true;
+                    document.getElementById('finalScore').textContent = gameState.score;
+                    document.getElementById('gameOver').style.display = 'block';
+                }
+                
+                function restartGame() {
+                    gameState = {
+                        score: 0,
+                        lives: 3,
+                        wave: 1,
+                        gameOver: false,
+                        paused: false
+                    };
+                    player.x = canvas.width / 2 - 20;
+                    bullets = [];
+                    particles = [];
+                    createAliens();
+                    document.getElementById('gameOver').style.display = 'none';
+                }
+                
+                function gameLoop() {
+                    update();
+                    draw();
+                    requestAnimationFrame(gameLoop);
+                }
+                
+                // Initialize and start game
+                createAliens();
+                gameLoop();
+                
+                // Focus canvas for immediate keyboard input
+                canvas.focus();
+            </script>
+        </body>
+        </html>
+        EOF
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: 'docs'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2

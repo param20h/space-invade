@@ -1,0 +1,295 @@
+name: Deploy Space Invaders Game
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pygame
+        pip install pygbag
+        
+    - name: Create web-compatible version
+      run: |
+        # Create a web directory
+        mkdir -p web
+        
+        # Copy the main game file to web directory with asyncio modifications
+        cp space_invaders.py web/main.py
+        
+        # Create requirements file
+        echo "pygame" > web/requirements.txt
+        
+    - name: Modify game for web deployment
+      run: |
+        # Create web-compatible version of the game
+        cat > web/main.py << 'EOF'
+        import pygame
+        import random
+        import sys
+        import math
+        import json
+        import asyncio
+
+        pygame.init()
+        pygame.mixer.init()
+
+        # Screen settings
+        WIDTH, HEIGHT = 1000, 700
+        screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.display.set_caption("Ultimate Space Invaders")
+
+        # Colors
+        BLACK = (0, 0, 0)
+        WHITE = (255, 255, 255)
+        GREEN = (0, 255, 0)
+        RED = (255, 0, 0)
+        YELLOW = (255, 255, 0)
+        BLUE = (0, 100, 255)
+        PURPLE = (128, 0, 128)
+        CYAN = (0, 255, 255)
+        ORANGE = (255, 165, 0)
+        PINK = (255, 192, 203)
+
+        # Game state
+        class GameState:
+            def __init__(self):
+                self.score = 0
+                self.wave = 1
+                self.lives = 3
+                self.level = 1
+                self.xp = 0
+                self.coins = 0
+                self.combo = 0
+                self.max_combo = 0
+                self.achievements = []
+                self.weapon_type = 'laser'
+                self.weapon_level = 1
+                
+        game = GameState()
+
+        # Player
+        player_x = WIDTH // 2
+        player_y = HEIGHT - 80
+        player_speed = 6
+        invincible_timer = 0
+
+        # Bullets and weapons
+        bullets = []
+        missiles = []
+        laser_beam_active = False
+        laser_beam_timer = 0
+
+        # Enemies
+        aliens = []
+        mini_bosses = []
+        boss_active = False
+        boss_data = {'x': WIDTH//2, 'y': 100, 'health': 200, 'max_health': 200, 'pattern': 0}
+
+        # Environmental
+        obstacles = []
+        wormholes = []
+        particles = []
+        screen_shake = 0
+
+        # Power-ups and effects
+        powerups = []
+        bullet_time = False
+        bullet_time_timer = 0
+        magnetic_field = False
+        magnetic_timer = 0
+
+        # Timers
+        spawn_timers = {'alien': 0, 'powerup': 0, 'obstacle': 0, 'particle': 0}
+
+        # Audio (placeholder - would need actual sound files)
+        sounds = {'shoot': None, 'explosion': None, 'powerup': None, 'boss': None}
+
+        # Stars background
+        stars = [[random.randint(0, WIDTH), random.randint(0, HEIGHT), random.randint(1, 4)] for _ in range(150)]
+
+        # Fonts
+        font_small = pygame.font.Font(None, 24)
+        font_medium = pygame.font.Font(None, 36)
+        font_large = pygame.font.Font(None, 48)
+        font_huge = pygame.font.Font(None, 72)
+
+        def create_particle(x, y, color, velocity):
+            particles.append({'x': x, 'y': y, 'vx': velocity[0], 'vy': velocity[1], 'color': color, 'life': 30})
+
+        def screen_shake_effect(intensity):
+            global screen_shake
+            screen_shake = max(screen_shake, intensity)
+
+        def draw_enhanced_spaceship(x, y):
+            # Enhanced ship design based on weapon type
+            if game.weapon_type == 'laser':
+                pygame.draw.polygon(screen, CYAN, [(x+20, y), (x+5, y+25), (x+35, y+25)])
+                pygame.draw.rect(screen, WHITE, (x+15, y+10, 10, 8))
+            elif game.weapon_type == 'missile':
+                pygame.draw.polygon(screen, RED, [(x+20, y), (x+5, y+25), (x+35, y+25)])
+                pygame.draw.rect(screen, YELLOW, (x+12, y+8, 16, 4))
+            else:
+                pygame.draw.polygon(screen, WHITE, [(x+20, y), (x+5, y+25), (x+35, y+25)])
+            
+            # Weapon level indicators
+            for i in range(game.weapon_level):
+                pygame.draw.circle(screen, GREEN, (x+10+i*5, y+30), 2)
+
+        # Simplified game loop for web deployment
+        async def main():
+            global player_x, player_y, screen_shake, invincible_timer
+            clock = pygame.time.Clock()
+            running = True
+            
+            # Initialize some aliens for demo
+            for row in range(5):
+                for col in range(10):
+                    aliens.append({
+                        'x': 50 + col * 80,
+                        'y': 50 + row * 60,
+                        'type': 'basic',
+                        'health': 1,
+                        'points': 10
+                    })
+            
+            while running:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_SPACE:
+                            # Shoot bullet
+                            bullets.append({'x': player_x + 20, 'y': player_y, 'speed': 8})
+                
+                # Handle input
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_LEFT] and player_x > 0:
+                    player_x -= player_speed
+                if keys[pygame.K_RIGHT] and player_x < WIDTH - 40:
+                    player_x += player_speed
+                
+                # Update bullets
+                for bullet in bullets[:]:
+                    bullet['y'] -= bullet['speed']
+                    if bullet['y'] < 0:
+                        bullets.remove(bullet)
+                    else:
+                        # Check collision with aliens
+                        for alien in aliens[:]:
+                            if (abs(bullet['x'] - alien['x']) < 30 and 
+                                abs(bullet['y'] - alien['y']) < 30):
+                                aliens.remove(alien)
+                                bullets.remove(bullet)
+                                game.score += 10
+                                create_particle(alien['x'], alien['y'], GREEN, (random.randint(-2, 2), random.randint(-2, 2)))
+                                break
+                
+                # Update particles
+                for particle in particles[:]:
+                    particle['x'] += particle['vx']
+                    particle['y'] += particle['vy']
+                    particle['life'] -= 1
+                    if particle['life'] <= 0:
+                        particles.remove(particle)
+                
+                # Move aliens
+                for alien in aliens:
+                    alien['x'] += math.sin(pygame.time.get_ticks() * 0.001) * 0.5
+                    alien['y'] += 0.1
+                
+                # Clear screen
+                screen.fill(BLACK)
+                
+                # Draw stars
+                for star in stars:
+                    pygame.draw.circle(screen, WHITE, (int(star[0]), int(star[1])), star[2])
+                    star[1] += 0.5
+                    if star[1] > HEIGHT:
+                        star[1] = 0
+                        star[0] = random.randint(0, WIDTH)
+                
+                # Draw player
+                draw_enhanced_spaceship(player_x, player_y)
+                
+                # Draw bullets
+                for bullet in bullets:
+                    pygame.draw.rect(screen, YELLOW, (bullet['x'], bullet['y'], 4, 10))
+                
+                # Draw aliens
+                for alien in aliens:
+                    color = GREEN if alien['type'] == 'basic' else RED
+                    pygame.draw.rect(screen, color, (alien['x'], alien['y'], 30, 20))
+                
+                # Draw particles
+                for particle in particles:
+                    pygame.draw.circle(screen, particle['color'], (int(particle['x']), int(particle['y'])), 2)
+                
+                # Draw UI
+                score_text = font_medium.render(f"Score: {game.score}", True, WHITE)
+                screen.blit(score_text, (10, 10))
+                
+                lives_text = font_medium.render(f"Lives: {game.lives}", True, WHITE)
+                screen.blit(lives_text, (10, 50))
+                
+                wave_text = font_medium.render(f"Wave: {game.wave}", True, WHITE)
+                screen.blit(wave_text, (10, 90))
+                
+                # Check win condition
+                if not aliens:
+                    win_text = font_large.render("YOU WIN! Press R to restart", True, GREEN)
+                    text_rect = win_text.get_rect(center=(WIDTH//2, HEIGHT//2))
+                    screen.blit(win_text, text_rect)
+                
+                pygame.display.flip()
+                await asyncio.sleep(0)
+                clock.tick(60)
+            
+            pygame.quit()
+
+        if __name__ == "__main__":
+            asyncio.run(main())
+        EOF
+        
+    - name: Build web version with pygbag
+      run: |
+        cd web
+        python -m pygbag main.py --width 1000 --height 700 --name "Space Invaders"
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: 'web/dist'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
